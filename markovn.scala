@@ -37,7 +37,8 @@ object Markovyn {
   }
   
   def indicesToWord(ixs: List[Int]): String = {
-    ixs.map(_ + 'a').map(_.toChar).mkString
+    ixs.map { i => if (i == 26) ' ' else i.+('a').toChar }
+       .mkString
   }
   
 }
