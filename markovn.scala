@@ -26,8 +26,7 @@ object Markovyn {
   
   def normalize(row: Row): Row = {
     val t = row.foldLeft(List(0.0)) { (prev, num) => (prev.head + num) :: prev }
-               .reverse
-               .tail
+               .reverse.tail
     t.map { _ / t.last }
      .toArray
   }
@@ -37,13 +36,17 @@ object Markovyn {
         .toList
   }
   
+  def indicesToWord(ixs: List[Int]): String = {
+    ixs.map(_ + 'a').map(_.toChar).mkString
+  }
+  
 }
 
 class Markovyn(trainingSet: Iterator[String]) {
   import Markovyn._
   
-  val transition: Mx4 = Array.fill(27, 27, 27, 27)(1.0)
-  val random = new util.Random
+  private val transition: Mx4 = Array.fill(27, 27, 27, 27)(1.0)
+  private val random = new util.Random
   
   trainingSet.foreach { word =>
     addWord("   " + word(0))
@@ -61,19 +64,17 @@ class Markovyn(trainingSet: Iterator[String]) {
   
   private def sampleRow(row: Row): Int = {
     val dice = random.nextDouble
-    val ix = normalize(row).indexWhere(dice < _)
-    ix
+    normalize(row).indexWhere(dice < _)
   }
   
   private def sampleStarter(): List[Int] = {
-    val first = sampleRow(transition(26)(26)(26))
+    val first  = sampleRow(transition(26)(26)(26))
     val second = sampleRow(transition(26)(26)(first))
-    val third = sampleRow(transition(26)(first)(second))
+    val third  = sampleRow(transition(26)(first)(second))
     List(first, second, third)
   }
   
   def generate(): String = {
-    val starter = sampleStarter()
     
     def grow(current: List[Int]): List[Int] = {
       val next = sampleRow(transition(current(2))(current(1))(current(0)))
@@ -81,10 +82,8 @@ class Markovyn(trainingSet: Iterator[String]) {
       else grow(next :: current)
     }
     
-    val gen = grow(starter.reverse).reverse
-                                   .map(_ + 'a')
-                                   .map(_.toChar)
-                                   .mkString
+    val starter = sampleStarter()
+    val gen = indicesToWord(grow(starter.reverse).reverse)
     if (gen.contains('x') || gen.contains('v'))
       generate()
     else
