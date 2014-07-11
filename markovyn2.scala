@@ -22,7 +22,6 @@ object Markovyn {
   type Row = Array[Double]
   type Mx2 = Array[Row]
   type Mx3 = Array[Mx2]
-  type Mx4 = Array[Mx3]
   
   def normalize(row: Row): Row = {
     val t = row.foldLeft(List(0.0)) { (prev, num) => (prev.head + num) :: prev }
@@ -41,50 +40,52 @@ object Markovyn {
        .mkString
   }
   
-  private def sampleRow(row: Row)(implicit random: util.Random): Int = {
+  def sampleRow(row: Row)(implicit random: util.Random): Int = {
     val dice = random.nextDouble
     normalize(row).indexWhere(dice < _)
+  }
+  
+  def isValid(word: String) = {
+    !(word.contains('x') || word.contains('v')) && word.length > 4
   }
 }
 
 class Markovyn(trainingSet: Iterator[String]) {
   import Markovyn._
   
-  private val transition: Mx4 = Array.fill(27, 27, 27, 27)(1.0)
+  private val transition: Mx3 = Array.fill(27, 27, 27)(1.0)
   private implicit val random = new util.Random
   
   trainingSet.foreach { word =>
-    addWord("   " + word(0))
-    addWord("  " ++ word.take(2))
-    addWord(" " ++ word.take(3))
-    word.sliding(4).foreach { addWord(_) }
-    addWord(word.takeRight(3) ++ " ")
+    addWord("  " ++ word.take(1))
+    addWord(" " ++ word.take(2))
+    word.sliding(3).foreach { addWord(_) }
+    addWord(word.takeRight(2) ++ " ")
   }
   
   private def addWord(word: String) {
-    assert(word.length == 4)
+    assert(word.length == 3)
     val indices = wordToIndices(word)
-    transition(indices(0))(indices(1))(indices(2))(indices(3)) += 1
+    transition(indices(0))(indices(1))(indices(2)) += 1
   }
   
   private def sampleStarter(): List[Int] = {
-    val first  = sampleRow(transition(26)(26)(26))
-    val second = sampleRow(transition(26)(26)(first))
-    val third  = sampleRow(transition(26)(first)(second))
-    List(first, second, third)
+    val first  = sampleRow(transition(26)(26))
+    val second = sampleRow(transition(26)(first))
+    List(first, second)
   }
   
   def generate(): String = {
     
     def grow(current: List[Int]): List[Int] = {
-      val next = sampleRow(transition(current(2))(current(1))(current(0)))
+      val next = sampleRow(transition(current(1))(current(0)))
       if (next == 26) current
       else grow(next :: current)
     }
     
     val starter = sampleStarter()
     val gen = indicesToWord(grow(starter.reverse).reverse)
-    if (gen.contains('x') || gen.contains('v'))
+    if (!isValid(gen))
       generate()
     else
       gen
@@ -99,5 +100,5 @@ val conditioned = wi.filter(_.length > 3)
 
 val markov = new Markovyn(conditioned)
 
-println("Markov chain third order, with stastistical ending")
+println("Markov chain second order, with stastistical ending")
 (1 to 100).foreach { _ => println(markov.generate()) }
