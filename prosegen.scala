@@ -22,7 +22,7 @@ class SentenceStream(in: Source) extends Iterator[String] {
   
   def next: String = {
     source.next.trim
-      .>>>(replaceLineBreak)
+      .>>>(trimWhiteSpace)
       .>>>(tagEnumeration)
       .>>>(tagDate)
       .>>>(tagAkta)
@@ -33,9 +33,8 @@ class SentenceStream(in: Source) extends Iterator[String] {
       .>>>(removeDash)
   }
   
-  def replaceLineBreak(sentence: String) = {
+  def trimWhiteSpace(sentence: String) =
     sentence.replaceAll("""\s+""", " ")
-  }
   
   def tagEnumeration(sentence: String) =
     sentence.replaceAll("""[0-9]*\([0-9a-z]+\)""", "__ENUMERATION")
