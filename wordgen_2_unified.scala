@@ -1,7 +1,4 @@
 
-import java.util.Scanner
-import java.io.InputStream
-
 object WordIterator {
   
   val wordRegex = ('a' to 'z') ++ ('A' to 'Z') toSet
@@ -14,7 +11,7 @@ object WordIterator {
   
 }
 
-object Markovyn {
+object WordGenerator {
   
   type Row = Array[Double]
   type Mx2 = Array[Row]
@@ -47,8 +44,8 @@ object Markovyn {
   }
 }
 
-class Markovyn(trainingSet: Iterator[String]) {
-  import Markovyn._
+class WordGenerator(trainingSet: Iterator[String]) {
+  import WordGenerator._
   
   private val transition: Mx3 = Array.fill(27, 27, 27)(1.0)
   private implicit val random = new util.Random
@@ -88,6 +85,12 @@ class Markovyn(trainingSet: Iterator[String]) {
       gen
   }
   
+  def score(word: String): Double =
+    ("  " + word + " ").sliding(3)
+      .map(wordToIndices)
+      .map { case List(a, b, c) => transition(a)(b)(c) }
+      .sum./(word.length)
+
 }
 
 val wi = WordIterator(io.Source.stdin.getLines)
@@ -95,7 +98,7 @@ val wi = WordIterator(io.Source.stdin.getLines)
 val conditioned = wi.filter(_.length > 3)
                     .map(_.toLowerCase)
 
-val markov = new Markovyn(conditioned)
+val markov = new WordGenerator(conditioned)
 
 println("Markov chain second order, with stastistical ending")
 (1 to 100).foreach { _ => println(markov.generate()) }
