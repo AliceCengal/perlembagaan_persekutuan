@@ -61,7 +61,7 @@ class SentenceStream(in: Source) extends Iterator[List[String]] {
     sentence.replaceAll("""[0-9]+""", "__NUM")
   
   private def tagRomanNumeral(sentence: String) =
-    sentence.replaceAll("""[IVXM]+""", "__ROMNUM")
+    sentence.replaceAll("""[VXMvxm][IVXMivxm]*""", "__ROMNUM")
   
   private def removeParens(sentence: String) =
     sentence.replaceAll("""\(|\)""", "")
