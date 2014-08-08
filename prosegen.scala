@@ -84,7 +84,7 @@ object ArtifactGenerator {
   def enumeration(implicit rand: Random): String = {
     {
       if (rand.nextBoolean()) ""
-      else (rand.nextInt(50) + 1)
+      else (1 to 50).random().toString
     } + {
       if (rand.nextBoolean()) s"(${numbers.random()})"
       else s"(${letters.random()})"
@@ -92,15 +92,12 @@ object ArtifactGenerator {
   }
   
   def date(implicit rand: Random): String = {
-    s"${(1 to 30).random()}-${(1 to 12).random()}-${(1948 to 2020).random()}"
+    s"${(1 to 31).random()}-${(1 to 12).random()}-${(1948 to 2020).random()}"
   }
   
   def akta(implicit rand: Random): String = {
-    if (rand.nextBoolean()) {
-      s"A${(50 to 800).random()}"
-    } else {
-      s"${(1 to 50).random()}/${(1000 to 3000).random()}"
-    }
+    if (rand.nextBoolean()) s"A${(50 to 800).random()}"
+    else s"${(1 to 50).random()}/${(1000 to 3000).random()}"
   }
   
   def year(implicit rand: Random): String = {
