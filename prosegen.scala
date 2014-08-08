@@ -2,7 +2,7 @@
 import io.Source
 import util.Random
 
-
+type Phrase = List[String]
 
 implicit class Piped[T](val self: T) {
   def >>>[U](receiver: T=>U): U = receiver(self)
@@ -14,21 +14,20 @@ implicit class RandomlyPick[T](collection: Seq[T]) {
       collection(rand.nextInt(collection.length))
 }
 
-class SentenceStream(in: Source) extends Iterator[List[String]] {
+class SentenceStream(in: Source) extends Iterator[Phrase] {
   
   private val lengthLimit = 4
   
   private val sentenceDelimiter = "[.;:!?]"
   
   private val source = 
-      in.mkString
-      .split(sentenceDelimiter)
-      .iterator
+      in.mkString // TODO process source in chunks. don't load all of it
+      .split(sentenceDelimiter).iterator
       .filter { sentence => words(sentence).length > lengthLimit }
   
   def hasNext: Boolean = source.hasNext
   
-  def next: List[String] = {
+  def next: Phrase = {
     source.next.trim
       .>>>(trimWhiteSpace)
       .>>>(tagEnumeration)
@@ -37,8 +36,8 @@ class SentenceStream(in: Source) extends Iterator[List[String]] {
       .>>>(tagYear)
       .>>>(tagNumber)
       .>>>(tagRomanNumeral)
+      .>>>(removeQuotes)
       .>>>(removeParens)
-      .>>>(removeDash)
       .>>>(words).toList
   }
   
@@ -57,19 +56,19 @@ class SentenceStream(in: Source) extends Iterator[List[String]] {
       .replaceAll("""[0-9]+/[0-9]+""", "__AKTANUM")
   
   private def tagYear(sentence: String) =
-    sentence.replaceAll("""\s+[1|2][0-9][0-9][0-9]\s+""", " __YEAR ")
+    sentence.replaceAll("""[1|2][0-9][0-9][0-9]""", "__YEAR")
   
   private def tagNumber(sentence: String) =
-    sentence.replaceAll("""\s+[0-9]+\s+""", " __NUM ")
+    sentence.replaceAll("""[0-9]+""", "__NUM")
   
   private def tagRomanNumeral(sentence: String) =
     sentence.replaceAll("""\s+[VXM][IVXM]*\s+""", " __ROMNUM ")
   
+  private def removeQuotes(sentence: String) =
+    sentence.replace("\"", "")
+  
   private def removeParens(sentence: String) =
     sentence.replaceAll("""\(|\)""", "")
-  
-  private def removeDash(sentence: String) =
-    sentence.replaceAll("—|-", "")
   
   private def words(sentence: String) =
     sentence.split("""\s+""")
@@ -81,7 +80,7 @@ object ArtifactGenerator {
   val numbers = '0' to '9'
   val letters = 'a' to 'z'
   val upperLetters = 'A' to 'Z'
-  val roman = "IVXML".toList
+  val roman = "IVXM".toList
   
   def enumeration()(implicit rand: Random): String = {
     {
@@ -118,32 +117,28 @@ object ArtifactGenerator {
   }
   
   def reifyTags(word: String)(implicit rand: Random) = {
-    word match {
-      case "__ENUMERATION" => enumeration()
-      case "__DATE"        => date()
-      case "__AKTANUM"     => akta()
-      case "__YEAR"        => year()
-      case "__NUM"         => number()
-      case "__ROMNUM"      => romanNumeral()
-      case word            => word
-    }
+    word
+      .replace("__ENUMERATION", enumeration())
+      .replace("__DATE"       , date())
+      .replace("__AKTANUM"    , akta())
+      .replace("__YEAR"       , year())
+      .replace("__NUM"        , number())
+      .replace("__ROMNUM"     , romanNumeral())
   }
+  
 }
 
-object ProseGenerator {
-  type Phrase = List[String]
-}
-
-class ProseGenerator(trainingSet: Iterator[ProseGenerator.Phrase]) {
-  import ProseGenerator._
+class ProseGenerator(trainingSet: Iterator[Phrase]) {
   import ArtifactGenerator._
   
-  val order         = 3
+  val order         = 2
   implicit val rand = new Random(System.currentTimeMillis)
   var frequency     = Map.empty[Phrase,List[String]]
   
+  private val emptyStub = List.fill(order)("")
+  
   trainingSet.foreach { sentence =>
-    val padded = List.fill(order)("") ++ sentence :+ ""
+    val padded = emptyStub ++ sentence :+ ""
     padded.sliding(order + 1).foreach(add)
   }
   
@@ -160,11 +155,14 @@ class ProseGenerator(trainingSet: Iterator[ProseGenerator.Phrase]) {
     assert(stub.length == order)
     frequency.get(stub) match {
       case Some(allNext) => allNext.random()
-      case _             => ""
+      case _             => sample(List("", "", ""))
     }
   }
   
-  
+  def valid(in: Phrase): Boolean = {
+    in.length > 5 &&
+    in.map(_.length).sum < 140
+  }
   
   def generate(): Phrase = {
     
@@ -175,8 +173,12 @@ class ProseGenerator(trainingSet: Iterator[ProseGenerator.Phrase]) {
       }
     }
     
-    grow(List("", "", "")).reverse.drop(3).map(reifyTags)
+    grow(List.fill(order)("")).reverse.drop(3).map(reifyTags)
+      .>>>(gen => if (valid(gen)) gen else generate())
   }
   
 }
+
+val gen = new ProseGenerator(new SentenceStream(Source.fromFile("perlembagaan_persekutuan.my")) ++ new SentenceStream(Source.fromFile("novels.txt")))
+
 
