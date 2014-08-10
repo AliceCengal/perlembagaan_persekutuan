@@ -36,6 +36,7 @@ class SentenceStream(in: Source) extends Iterator[Phrase] {
       .>>>(tagYear)
       .>>>(tagNumber)
       .>>>(tagRomanNumeral)
+      .>>>(isolateComma)
       .>>>(removeQuotes)
       .>>>(removeParens)
       .>>>(words).toList
@@ -64,11 +65,14 @@ class SentenceStream(in: Source) extends Iterator[Phrase] {
   private def tagRomanNumeral(sentence: String) =
     sentence.replaceAll("""\s+[VXM][IVXM]*\s+""", " __ROMNUM ")
   
+  private def isolateComma(sentence: String) =
+    sentence.replace(",", " , ")
+  
   private def removeQuotes(sentence: String) =
     sentence.replace("\"", "")
   
   private def removeParens(sentence: String) =
-    sentence.replaceAll("""\(|\)""", "")
+    sentence.replace("(", "").replace(")", "")
   
   private def words(sentence: String) =
     sentence.split("""\s+""")
@@ -111,7 +115,7 @@ object ArtifactGenerator {
   
   def romanNumeral()(implicit rand: Random): String = {
     // Fuck it. If it looks Roman, it's Roman
-    (-2 to rand.nextInt(4))
+    (-1 to rand.nextInt(4))
       .map { _ => roman.random()}
       .mkString
   }
@@ -128,10 +132,50 @@ object ArtifactGenerator {
   
 }
 
+object ProseGenerator {
+  def prehashWord(word: String) =
+    word.toLowerCase
+      .>>>(anonymize)
+      .>>>(undialect)
+      .>>>(delocus)
+  
+  def prehash(phrase: Phrase): Phrase =
+    phrase.map(prehashWord)
+    
+  val names =
+    List("daniel", "habibah", "tan", "sri", "adrian", "henry", "amanda",
+      "bibah", "qassif", "haiza", "hamid", "mummy", "adam", "yang", "di-pertuan", "agong",
+      "rayyan", "sulaiman", "warganegara", "perdana", "menteri", "melissa",
+      "puan", "datuk", "suraya", "datin", "zubaidah", "sharifah", "maya", "farrah", "raja", 
+      "sophia", "ezara", "perkataan", "gabenor", "scha", "hazryl", "undang-undang", "aku", 
+      "mahkamah", "manda")
+      
+  def anonymize(word: String) =
+    names.foldLeft(word) { (raw, sample) =>
+      if (raw == sample) "__NAME" else raw}
+  
+  def undialect(word: String) =
+    word.replace(" nak ", " hendak ")
+      .replace(" mahu ", " hendak ")
+      .replace("hendaklah", "hendak")
+    
+  def places =
+    List("wilayah-wilayah", "wilayah", "rumah", "persekutuan", "negeri-negeri", "negeri", 
+      "villa", "hospital",  "tanah", "kawasan", "vila", "singapura", "katil", "bilik",
+      "kuala", "lumpur", "selangor", "perak", "kedah", "perlis", "melaka", "johor", 
+      "pahang", "terengganu", "kelantan", "sabah", "sarawak", "borneo", "labuan")
+      
+  def delocus(word: String) =
+    places.foldLeft(word) { (raw, sample) =>
+      if (raw == sample) "__PLACE" else raw }
+
+}
+
 class ProseGenerator(trainingSet: Iterator[Phrase]) {
   import ArtifactGenerator._
+  import ProseGenerator._
   
-  val order         = 2
+  val order         = 1
   implicit val rand = new Random(System.currentTimeMillis)
   var frequency     = Map.empty[Phrase,List[String]]
   
@@ -142,26 +186,29 @@ class ProseGenerator(trainingSet: Iterator[Phrase]) {
     padded.sliding(order + 1).foreach(add)
   }
   
+  frequency = frequency.filter(_._2.length > 1)
+  
   private def add(phrase: Phrase): Unit = {
     assert(phrase.length == order.+(1))
     val next :: prevsReversed = phrase.reverse
-    frequency.get(prevsReversed) match {
-      case Some(allNext) => frequency += (prevsReversed -> (next :: allNext))
-      case None          => frequency += (prevsReversed -> List(next))
+    val treatedPrefix = prehash(prevsReversed)
+    frequency.get(treatedPrefix) match {
+      case Some(allNext) => frequency += (treatedPrefix -> (next :: allNext))
+      case None          => frequency += (treatedPrefix -> List(next))
     }
   }
   
-  private def sample(stub: Phrase): String = {
+  def sample(stub: Phrase): String = {
     assert(stub.length == order)
-    frequency.get(stub) match {
+    frequency.get(prehash(stub)) match {
       case Some(allNext) => allNext.random()
-      case _             => sample(List("", "", ""))
+      case _             => sample(emptyStub)
     }
   }
   
   def valid(in: Phrase): Boolean = {
-    in.length > 5 &&
-    in.map(_.length).sum < 140
+    in.length > 5 // &&
+    //in.map(_.length).sum < 140
   }
   
   def generate(): Phrase = {
@@ -173,7 +220,7 @@ class ProseGenerator(trainingSet: Iterator[Phrase]) {
       }
     }
     
-    grow(List.fill(order)("")).reverse.drop(3).map(reifyTags)
+    grow(emptyStub).reverse.drop(order).map(reifyTags)
       .>>>(gen => if (valid(gen)) gen else generate())
   }
   
